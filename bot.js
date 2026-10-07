@@ -151,8 +151,12 @@ async function sendGreeting(ticketId, msg) {
   let clicked = false;
   try {
     await page.goto(`https://${DOMAIN}/a/tickets/${ticketId}`, { waitUntil: "domcontentloaded" });
-    const editor = page.locator('[data-test-id="active-editor"]');
+        const editor = page.locator('[data-test-id="active-editor"]');
     await editor.waitFor({ timeout: 30000 });
+    // اختار تاب Reply (الواتس) صراحة، عشان ميفضلش على Note
+    await page.locator('[data-test-id="ticket-action-reply"]').last().click();
+    await page.waitForTimeout(1000);
+    await editor.waitFor({ timeout: 10000 });
     await editor.click();
     await page.keyboard.insertText(msg);
     await page.locator('[data-test-id="submit"]').click();
