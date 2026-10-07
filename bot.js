@@ -152,24 +152,29 @@ async function sendGreeting(ticketId, msg) {
   let step = "فتح الصفحة";
   try {
     await page.goto(`https://${DOMAIN}/a/tickets/${ticketId}`, { waitUntil: "domcontentloaded" });
+    await page.waitForLoadState("networkidle", { timeout: 20000 }).catch(() => {});
 
     const replyTab = page.locator('[data-test-id="ticket-action-reply"]').last();
-    const editor = page.locator('[data-test-id="active-editor"]').last();
+    let editor = page.locator('[data-test-id="active-editor"]').last();
     const submit = page.locator('[data-test-id="submit"]').last();
 
     step = "استنى تاب Reply";
     await replyTab.waitFor({ timeout: 45000 });
     await page.waitForTimeout(1500);
 
+    // لو التاب متقفل يبقى هو النشط أصلاً، فمنضغطش عليه
     step = "الضغط على تاب Reply";
-    await replyTab.click({ timeout: 15000 });
-    try {
-      step = "استنى الـ editor";
-      await editor.waitFor({ state: "visible", timeout: 10000 });
-    } catch {
-      step = "الضغط التاني على تاب Reply";
+    if (await replyTab.isEnabled()) {
       await replyTab.click({ timeout: 15000 });
+    }
+
+    step = "استنى الـ editor";
+    try {
       await editor.waitFor({ state: "visible", timeout: 30000 });
+    } catch {
+      // بديل لو الـ selector الأساسي مظهرش
+      editor = page.locator('[contenteditable="true"]').last();
+      await editor.waitFor({ state: "visible", timeout: 15000 });
     }
 
     step = "الضغط على الـ editor";
