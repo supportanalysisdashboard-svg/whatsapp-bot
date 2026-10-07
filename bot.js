@@ -149,33 +149,45 @@ async function shutdown(msg) {
 async function sendGreeting(ticketId, msg) {
   const page = await context.newPage();
   let clicked = false;
+  let step = "فتح الصفحة";
   try {
     await page.goto(`https://${DOMAIN}/a/tickets/${ticketId}`, { waitUntil: "domcontentloaded" });
 
     const replyTab = page.locator('[data-test-id="ticket-action-reply"]').last();
     const editor = page.locator('[data-test-id="active-editor"]').last();
+    const submit = page.locator('[data-test-id="submit"]').last();
 
+    step = "استنى تاب Reply";
     await replyTab.waitFor({ timeout: 45000 });
     await page.waitForTimeout(1500);
 
-    // اضغط Reply، ولو الـ editor اتقفل (toggle) اضغط تاني مرة واحدة
-    await replyTab.click();
+    step = "الضغط على تاب Reply";
+    await replyTab.click({ timeout: 15000 });
     try {
+      step = "استنى الـ editor";
       await editor.waitFor({ state: "visible", timeout: 10000 });
     } catch {
-      await replyTab.click();
+      step = "الضغط التاني على تاب Reply";
+      await replyTab.click({ timeout: 15000 });
       await editor.waitFor({ state: "visible", timeout: 30000 });
     }
 
-    await editor.click();
+    step = "الضغط على الـ editor";
+    await editor.click({ timeout: 15000 });
+
+    step = "كتابة الرسالة";
     await page.keyboard.insertText(msg);
-    await page.locator('[data-test-id="submit"]').click();
+    await page.waitForTimeout(500);
+
+    step = "الضغط على زرار Send";
+    await submit.click({ timeout: 15000 });
     clicked = true;
     await page.waitForTimeout(3000);
     return true;
   } catch (e) {
-    console.error("فشل الإرسال للتيكيت", tid(ticketId), "|", e.message.split("\n")[0]);
-    await page.screenshot({ path: `fail-${Date.now()}.png` }).catch(() => {});
+    const lines = e.message.split("\n").map((l) => l.trim()).filter(Boolean).slice(0, 6).join(" | ");
+    console.error("فشل الإرسال للتيكيت", tid(ticketId), "| الخطوة:", step, "|", lines);
+    await page.screenshot({ path: `fail-${Date.now()}.png`, fullPage: true }).catch(() => {});
     return clicked;
   } finally {
     await page.close().catch(() => {});
