@@ -18,7 +18,12 @@ jobs:
         id: hours
         run: |
           H=$(TZ=Africa/Cairo date +%H)
-          if [ "$H" -ge 10 ]; then echo "go=true" >> "$GITHUB_OUTPUT"; else echo "go=false" >> "$GITHUB_OUTPUT"; fi
+
+          if [ "$H" -ge 10 ] || [ "$H" -eq 0 ]; then
+            echo "go=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "go=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - uses: actions/checkout@v4
         if: steps.hours.outputs.go == 'true'
