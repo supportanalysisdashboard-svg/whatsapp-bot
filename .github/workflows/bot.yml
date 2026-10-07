@@ -1,0 +1,47 @@
+name: whatsapp-bot
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: whatsapp-bot
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 355
+    steps:
+      - name: Check Cairo hours
+        id: hours
+        run: |
+          H=$(TZ=Africa/Cairo date +%H)
+          if [ "$H" -ge 10 ]; then echo "go=true" >> "$GITHUB_OUTPUT"; else echo "go=false" >> "$GITHUB_OUTPUT"; fi
+
+      - uses: actions/checkout@v4
+        if: steps.hours.outputs.go == 'true'
+
+      - uses: actions/setup-node@v4
+        if: steps.hours.outputs.go == 'true'
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        if: steps.hours.outputs.go == 'true'
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Run bot
+        if: steps.hours.outputs.go == 'true'
+        run: node bot.js
+        env:
+          FD_API_KEY: ${{ secrets.FD_API_KEY }}
+          STATE_GZ_B64: ${{ secrets.STATE_GZ_B64 }}
+          QUIET: "1"
+          NO_BASELINE: "1"
+          EXIT_OUTSIDE: "1"
+          MAX_RUN_MIN: "335"
