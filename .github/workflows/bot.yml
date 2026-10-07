@@ -2,6 +2,7 @@ name: whatsapp-bot
 
 on:
   schedule:
+    - cron: "*/15 * * * *"
     # 10:00 AM Cairo = 07:00 UTC
     # 03:30 PM Cairo = 12:30 UTC
     # 09:00 PM Cairo = 18:00 UTC
@@ -57,3 +58,12 @@ jobs:
           NO_BASELINE: "1"
           EXIT_OUTSIDE: "1"
           MAX_RUN_MIN: "325"
+
+      - name: Upload failure screenshots
+        if: always() && steps.hours.outputs.go == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: fail-screenshots
+          path: fail-*.png
+          if-no-files-found: ignore
+          retention-days: 3
