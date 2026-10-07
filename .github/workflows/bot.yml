@@ -2,7 +2,13 @@ name: whatsapp-bot
 
 on:
   schedule:
-    - cron: "*/15 * * * *"
+    # 10:00 AM Cairo = 07:00 UTC
+    # 03:30 PM Cairo = 12:30 UTC
+    # 09:00 PM Cairo = 18:00 UTC
+    - cron: "0 7 * * *"
+    - cron: "30 12 * * *"
+    - cron: "0 18 * * *"
+
   workflow_dispatch:
 
 concurrency:
@@ -12,14 +18,15 @@ concurrency:
 jobs:
   run:
     runs-on: ubuntu-latest
-    timeout-minutes: 355
+    timeout-minutes: 335
+
     steps:
       - name: Check Cairo hours
         id: hours
         run: |
           H=$(TZ=Africa/Cairo date +%H)
 
-          if [ "$H" -ge 10 ] || [ "$H" -eq 0 ]; then
+          if [ "$H" -ge 10 ] && [ "$H" -le 23 ]; then
             echo "go=true" >> "$GITHUB_OUTPUT"
           else
             echo "go=false" >> "$GITHUB_OUTPUT"
@@ -49,4 +56,4 @@ jobs:
           QUIET: "1"
           NO_BASELINE: "1"
           EXIT_OUTSIDE: "1"
-          MAX_RUN_MIN: "335"
+          MAX_RUN_MIN: "325"
