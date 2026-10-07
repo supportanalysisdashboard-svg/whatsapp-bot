@@ -147,6 +147,50 @@ async function shutdown(msg) {
 }
 
 // ===== الدالة المعدّلة =====
+// بيدوّر على خانة الكتابة في الصفحة وفي كل الـ iframes
+async function findEditor(page, ms) {
+  const end = Date.now() + ms;
+  const sel = '[data-test-id="active-editor"], [contenteditable="true"], [role="textbox"], textarea';
+  while (Date.now() < end) {
+    for (const f of page.frames()) {
+      const loc = f.locator(sel).last();
+      if (await loc.isVisible().catch(() => false)) return loc;
+    }
+    await page.waitForTimeout(500);
+  }
+  return null;
+}
+
+// تشخيص بدون نصوص ولا بيانات عملاء: أسماء العناصر بس
+async function diagnose(page) {
+  const out = [];
+  for (const f of page.frames()) {
+    const r = await f.evaluate(() => {
+      const root =
+        document.querySelector('[data-test-id="whatsapp-reply"]') ||
+        document.querySelector('[data-test-id="social-editor"]');
+      const tree = root
+        ? [...root.querySelectorAll("*")].slice(0, 40).map((e) =>
+            e.tagName.toLowerCase() +
+            (e.getAttribute("data-test-id") ? "#" + e.getAttribute("data-test-id") : "") +
+            (e.hasAttribute("contenteditable") ? "[ce]" : "") +
+            (e.hasAttribute("placeholder") ? "[ph]" : "") +
+            (e.getAttribute("role") ? "[" + e.getAttribute("role") + "]" : "")
+          )
+        : null;
+      return {
+        host: location.host,
+        ce: document.querySelectorAll("[contenteditable]").length,
+        ta: document.querySelectorAll("textarea").length,
+        replyDisabled: document.querySelector('[data-test-id="ticket-action-reply"]')?.disabled ?? null,
+        tree,
+      };
+    }).catch(() => null);
+    out.push(r);
+  }
+  return out;
+}
+
 async function sendGreeting(ticketId, msg) {
   const page = await context.newPage();
   let clicked = false;
@@ -156,7 +200,6 @@ async function sendGreeting(ticketId, msg) {
     await page.waitForLoadState("networkidle", { timeout: 20000 }).catch(() => {});
 
     const replyTab = page.locator('[data-test-id="ticket-action-reply"]').last();
-    let editor = page.locator('[data-test-id="active-editor"]').last();
     const submit = page.locator('[data-test-id="submit"]').last();
 
     step = "استنى تاب Reply";
@@ -169,23 +212,18 @@ async function sendGreeting(ticketId, msg) {
       await replyTab.click({ timeout: 15000 });
     }
 
-    step = "فتح الـ editor";
-    try {
-      await editor.waitFor({ state: "visible", timeout: 8000 });
-    } catch {
-      // الـ editor مقفول (مكتوب فيه Type your response here...) ← اضغط عليه يفتح
-      const placeholder = page
-        .getByText(/Type your response here/i)
-        .or(page.getByPlaceholder(/Type your response here/i))
+    step = "البحث عن خانة الكتابة";
+    let editor = await findEditor(page, 10000);
+    if (!editor) {
+      step = "الضغط على صندوق الرد";
+      const box = page
+        .locator('[data-test-id="whatsapp-reply"]')
+        .or(page.getByText(/Type your response here/i))
         .first();
-      await placeholder.click({ timeout: 20000 });
-      try {
-        await editor.waitFor({ state: "visible", timeout: 20000 });
-      } catch {
-        editor = page.locator('[contenteditable="true"]').last();
-        await editor.waitFor({ state: "visible", timeout: 15000 });
-      }
+      await box.click({ timeout: 10000 }).catch(() => {});
+      editor = await findEditor(page, 25000);
     }
+    if (!editor) throw new Error("مفيش خانة كتابة ظاهرة في الصفحة ولا في الـ iframes");
 
     step = "الضغط على الـ editor";
     await editor.click({ timeout: 15000 });
@@ -202,17 +240,7 @@ async function sendGreeting(ticketId, msg) {
   } catch (e) {
     const lines = e.message.split("\n").map((l) => l.trim()).filter(Boolean).slice(0, 6).join(" | ");
     console.error("فشل الإرسال للتيكيت", tid(ticketId), "| الخطوة:", step, "|", lines);
-    const info = await page.evaluate(() => ({
-      path: location.pathname.replace(/\d+/g, "#"),
-      editors: document.querySelectorAll('[data-test-id="active-editor"]').length,
-      editable: document.querySelectorAll('[contenteditable="true"]').length,
-      iframes: document.querySelectorAll("iframe").length,
-      replyDisabled: document.querySelector('[data-test-id="ticket-action-reply"]')?.disabled ?? null,
-      ids: [...new Set([...document.querySelectorAll("[data-test-id]")]
-        .map((e) => e.getAttribute("data-test-id"))
-        .filter((x) => /editor|reply|note|submit|whatsapp|template|forward/i.test(x)))].slice(0, 15),
-    })).catch(() => null);
-    console.error("تشخيص:", JSON.stringify(info));
+    console.error("تشخيص:", JSON.stringify(await diagnose(page)));
     await page.screenshot({ path: `fail-${Date.now()}.png`, fullPage: true }).catch(() => {});
     return clicked;
   } finally {
