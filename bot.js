@@ -241,7 +241,6 @@ async function sendGreeting(ticketId, msg) {
     const lines = e.message.split("\n").map((l) => l.trim()).filter(Boolean).slice(0, 6).join(" | ");
     console.error("فشل الإرسال للتيكيت", tid(ticketId), "| الخطوة:", step, "|", lines);
     console.error("تشخيص:", JSON.stringify(await diagnose(page)));
-    await page.screenshot({ path: `fail-${Date.now()}.png`, fullPage: true }).catch(() => {});
     return clicked;
   } finally {
     await page.close().catch(() => {});
